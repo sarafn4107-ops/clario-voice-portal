@@ -1,14 +1,14 @@
 import { ReactNode } from "react";
 import { AppSidebar } from "./AppSidebar";
 import { TopBar } from "./TopBar";
-import { AnimatedBackground } from "../AnimatedBackground"; // optional
+import { AnimatedBackground } from "../AnimatedBackground";
+import ClaudeDock from "@/components/ClaudeDock"; // ⬅️ add this
 
 interface AppLayoutProps {
   children: ReactNode;
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
-  // ✅ No SidebarProvider here. It's already applied at the top level (main.tsx)
   return (
     <div className="min-h-screen flex w-full">
       {/* Optional background */}
@@ -22,6 +22,9 @@ export function AppLayout({ children }: AppLayoutProps) {
         <TopBar />
         <main className="flex-1 p-6 relative z-10">{children}</main>
       </div>
+
+      {/* ⬇️ Floating assistant appears on every page that uses AppLayout */}
+      <ClaudeDock />
     </div>
   );
 }
