@@ -1,8 +1,7 @@
 import { useState } from "react";
-import { askVoiceDoctor, askVoiceAnalyst } from "@/lib/assistants";
+import { askVoiceDoctor } from "@/lib/assistants";
 
 export default function VoiceDoctorChat() {
-  const [engine, setEngine] = useState<"claude"|"ollama">("claude");
   const [input, setInput] = useState("");
   const [log, setLog] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -14,8 +13,8 @@ export default function VoiceDoctorChat() {
     setLog((l) => [...l, `You: ${q}`]);
     setBusy(true);
     try {
-      const a = engine === "claude" ? await askVoiceDoctor(q) : await askVoiceAnalyst(q);
-      setLog((l) => [...l, `${engine === "claude" ? "Clario Voice Doctor" : "Voice Analyst"}: ${a}`]);
+      const a = await askVoiceDoctor(q);
+      setLog((l) => [...l, `Clario Voice Doctor: ${a}`]);
     } catch (e: any) {
       setLog((l) => [...l, `Error: ${e?.message || "failed"}`]);
     } finally {
@@ -25,20 +24,16 @@ export default function VoiceDoctorChat() {
 
   return (
     <div className="border rounded-lg p-4 space-y-3 bg-white/70">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Voice Doctor (safe coach)</h3>
-        <select
-          className="border rounded px-2 py-1 text-sm"
-          value={engine}
-          onChange={(e) => setEngine(e.target.value as any)}
-        >
-          <option value="claude">Claude (Netlify)</option>
-          <option value="ollama">Voice Analyst (Ollama)</option>
-        </select>
-      </div>
+      <h3 className="text-lg font-semibold">Voice Doctor (safe coach)</h3>
 
       <div className="h-56 overflow-auto whitespace-pre-wrap bg-white border rounded p-3 text-sm">
-        {log.length ? log.map((l, i) => <div key={i}>{l}</div>) : <div className="text-muted-foreground">Ask about warmups, breathwork, posture, hydration, and practice plans. No medical advice.</div>}
+        {log.length ? (
+          log.map((l, i) => <div key={i}>{l}</div>)
+        ) : (
+          <div className="text-muted-foreground">
+            Ask about warmups, cooldowns, breathwork, posture, hydration, and practice plans. No medical advice.
+          </div>
+        )}
       </div>
 
       <div className="flex gap-2">

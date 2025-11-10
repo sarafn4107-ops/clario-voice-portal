@@ -1,7 +1,10 @@
 import { fetchLatestReport, fetchHistory } from "@/lib/voiceData";
 
 export async function askVoiceDoctor(userMessage: string) {
-  const [latestReport, history] = await Promise.all([fetchLatestReport(), fetchHistory(20)]);
+  const [latestReport, history] = await Promise.all([
+    fetchLatestReport(),
+    fetchHistory(20),
+  ]);
 
   const res = await fetch("/.netlify/functions/voice-doctor", {
     method: "POST",
