@@ -11,6 +11,7 @@ import About from "@/pages/About";
 import Profile from "@/pages/Profile";
 import ProfileSetup from "@/pages/ProfileSetup";
 import Verification from "@/pages/Verification";
+import ClarioVoiceDoctor from "@/pages/ClarioVoiceDoctor"; // ✅ NEW
 
 // A tiny, local NotFound so we never show a blank screen
 function NotFound() {
@@ -30,7 +31,7 @@ function NotFound() {
    - Lets /auth render freely
 ----------------------------------------------------------------------------- */
 function RequireAuth() {
-  const [status, setStatus] = useState<"loading"|"authed"|"unauthed">("loading");
+  const [status, setStatus] = useState<"loading" | "authed" | "unauthed">("loading");
 
   useEffect(() => {
     let mounted = true;
@@ -43,7 +44,11 @@ function RequireAuth() {
   }, []);
 
   if (status === "loading") {
-    return <div className="min-h-screen grid place-items-center text-muted-foreground">Checking session…</div>;
+    return (
+      <div className="min-h-screen grid place-items-center text-muted-foreground">
+        Checking session…
+      </div>
+    );
   }
   if (status === "unauthed") {
     return <Navigate to="/auth" replace />;
@@ -58,16 +63,15 @@ function RequireAuth() {
 ----------------------------------------------------------------------------- */
 function RedirectByFlags() {
   const [loading, setLoading] = useState(true);
-  const [path, setPath] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setPath("/auth"); setLoading(false); return; }
+      if (!user) { setLoading(false); return; }
 
       // Read flags for THIS user only (RLS safe)
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("profiles")
         .select("product_verified,onboarding_completed")
         .eq("id", user.id)
@@ -78,14 +82,10 @@ function RedirectByFlags() {
       if (error) {
         console.warn("Flag fetch error:", error.message);
         // When in doubt, allow entry but keep a visible app error instead of blank page
-        setPath(null);
         setLoading(false);
         return;
       }
 
-      // Figure the correct landing redirect if the user is on "/" only.
-      // We DO NOT override child routes; we only redirect from "/" using AppIndex below.
-      setPath(null);
       setLoading(false);
     })();
     return () => { mounted = false; };
@@ -95,7 +95,6 @@ function RedirectByFlags() {
     return <div className="min-h-screen grid place-items-center text-muted-foreground">Loading…</div>;
   }
 
-  // If we ever needed a global forced redirect, we’d return <Navigate …/> here.
   return <Outlet />;
 }
 
@@ -165,6 +164,9 @@ export default function App() {
           <Route path="/goals" element={<Goals />} />
           <Route path="/about" element={<About />} />
           <Route path="/profile" element={<Profile />} />
+
+          {/* ✅ New: Clario Voice Doctor (Claude-only) */}
+          <Route path="/voice-doctor" element={<ClarioVoiceDoctor />} />
         </Route>
       </Route>
 
