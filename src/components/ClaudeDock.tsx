@@ -23,29 +23,35 @@ export default function ClaudeDock() {
 
   return (
     <>
-      {/* FAB button */}
+      {/* Floating Button */}
       <button
         onClick={() => setOpen((v) => !v)}
         className="fixed bottom-5 right-5 z-50 rounded-full shadow-lg px-4 py-3 bg-black text-white"
         aria-label="Open assistant"
       >
-        {open ? "Close" : "Ask Claude"}
+        {open ? "Close" : "Ask Voice Analyst"}
       </button>
 
-      {/* Panel */}
+      {/* Chat Panel */}
       {open && (
-        <div className="fixed bottom-20 right-5 z-50 w-96 max-w-[95vw] rounded-xl border bg-white shadow-xl">
-          <div className="p-3 border-b font-semibold">Assistant</div>
-          <div className="p-3 h-64 overflow-auto whitespace-pre-wrap text-sm space-y-1">
+        <div className="fixed bottom-20 right-5 z-50 w-96 max-w-[95vw] rounded-xl border bg-white shadow-xl text-black">
+          <div className="p-3 border-b font-semibold text-black">
+            Assistant
+          </div>
+          <div className="p-3 h-64 overflow-auto whitespace-pre-wrap text-sm space-y-1 text-black">
             {log.length === 0 ? (
-              <div className="text-gray-500">Ask me anything…</div>
+              <div className="text-black/70">Ask me anything…</div>
             ) : (
-              log.map((line, i) => <div key={i}>{line}</div>)
+              log.map((line, i) => (
+                <div key={i} className="text-black">
+                  {line}
+                </div>
+              ))
             )}
           </div>
           <div className="p-3 flex gap-2 border-t">
             <input
-              className="flex-1 border rounded px-3 py-2"
+              className="flex-1 border rounded px-3 py-2 text-black placeholder-black/50"
               placeholder="Type your question…"
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -54,7 +60,7 @@ export default function ClaudeDock() {
             />
             <button
               onClick={send}
-              className="border rounded px-4 py-2"
+              className="border rounded px-4 py-2 bg-black text-white disabled:opacity-50"
               disabled={busy}
             >
               {busy ? "…" : "Send"}

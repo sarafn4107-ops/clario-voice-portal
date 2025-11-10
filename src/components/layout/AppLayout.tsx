@@ -2,7 +2,6 @@ import { ReactNode } from "react";
 import { AppSidebar } from "./AppSidebar";
 import { TopBar } from "./TopBar";
 import { AnimatedBackground } from "../AnimatedBackground";
-import ClaudeDock from "@/components/ClaudeDock"; // ⬅️ add this
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -11,7 +10,7 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   return (
     <div className="min-h-screen flex w-full">
-      {/* Optional background */}
+      {/* Optional animated background */}
       <div className="fixed inset-0 -z-10 pointer-events-none">
         <AnimatedBackground />
       </div>
@@ -22,9 +21,6 @@ export function AppLayout({ children }: AppLayoutProps) {
         <TopBar />
         <main className="flex-1 p-6 relative z-10">{children}</main>
       </div>
-
-      {/* ⬇️ Floating assistant appears on every page that uses AppLayout */}
-      <ClaudeDock />
     </div>
   );
 }
