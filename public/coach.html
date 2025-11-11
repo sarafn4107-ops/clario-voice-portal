@@ -36,8 +36,15 @@
     .select{background:#0b1222;border:1px solid #26304a;border-radius:8px;padding:8px;color:var(--text);width:100%}
   </style>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.6.82/pdf.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <!-- marked.js (Markdown renderer) -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <!-- ✅ pdf.js v4 is an ES module; import it and expose a global for our non-module script -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.6.82/pdf.min.mjs" type="module"></script>
+  <script type="module">
+    import * as pdfjsLib from "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.6.82/pdf.min.mjs";
+    window.pdfjsLib = pdfjsLib;            // make it available to the rest of the page
+  </script>
 </head>
 <body>
   <header>
@@ -125,7 +132,7 @@ let detectedMode = "public_speaking"; // default
 /* ---------------- PDF extraction ---------------- */
 async function readPdf(file) {
   const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   let fullText = "";
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
@@ -315,13 +322,11 @@ function addBubble(role, text){
   chatLog.scrollTop = chatLog.scrollHeight;
 }
 
-// simple off-topic filter
 function isVoiceRelated(q){
   const p=q.toLowerCase();
   return /(voice|breath|breathing|sing|speak|speech|pitch|tone|resonance|articulation|karaoke|podcast|public|mpt|jitter|shimmer|s\/z|clarity|projection|fatigue|tension)/.test(p);
 }
 
-// variant bank per intent + mode
 const bank = {
   breath: {
     base: [
@@ -378,23 +383,19 @@ function modeAwareBreath(mode){
 async function replyFor(text){
   const p = text.toLowerCase();
 
-  // off-topic polite refusal
   if (!isVoiceRelated(p)) {
     return "I’m focused on **voice improvement** (breathing, clarity, pitch, projection, resonance). I can’t help with that request — try asking a voice-related question 🙂";
   }
 
-  // optional web snippet (best-effort)
   const web = await maybeSearchWeb(text);
   const mode = (modeSelect.value==="auto" ? detectedMode : modeSelect.value);
 
-  // intent routing
   if (/(breath|breathing|diaphragm|airflow|support)/.test(p)) return (web? web+"\n\n": "") + modeAwareBreath(mode);
   if (/(clarity|articulation|diction|pronunciation)/.test(p)) return (web? web+"\n\n": "") + bank.clarity[Math.floor(Math.random()*bank.clarity.length)];
   if (/(project|loud|volume)/.test(p))   return (web? web+"\n\n": "") + bank.projection[Math.floor(Math.random()*bank.projection.length)];
   if (/(hoarse|raspy|fatigue|tired)/.test(p)) return (web? web+"\n\n": "") + bank.fatigue[Math.floor(Math.random()*bank.fatigue.length)];
   if (/(pitch|jitter)/.test(p))          return (web? web+"\n\n": "") + bank.pitch[Math.floor(Math.random()*bank.pitch.length)];
   if (/(plan|routine|program|summary)/.test(p)) return (web? web+"\n\n": "") + (lastPlanMD || "Upload your PDF first and I’ll craft a plan.");
-  // default
   return (web? web+"\n\n": "") + `**Quick Warm-up (5–6 min)**\n- Lip/tongue trills 2 min\n- Hum slides 2 min\n- Read a paragraph, breathe at punctuation`;
 }
 
@@ -407,7 +408,6 @@ $("#pdfInput").addEventListener("change", async (e) => {
     reportText = await readPdf(file);
     detectedMode = detectModeFrom(reportText);
     if (modeSelect.value==="auto") {
-      // just visual hint for the user
       const opt = Array.from(modeSelect.options).find(o=>o.value===detectedMode);
       if (opt) modeSelect.title = `Detected: ${opt.text}`;
     }
