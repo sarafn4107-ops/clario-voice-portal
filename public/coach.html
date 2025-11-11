@@ -4,7 +4,6 @@
   <meta charset="utf-8" />
   <title>Voice Coach – PDF Report Assistant</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Minimal, clean styles -->
   <style>
     :root{--bg:#0b0f1a;--card:#121828;--muted:#9fb3c8;--accent:#29b782;--text:#e8eef6;}
     body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);}
@@ -12,11 +11,10 @@
     .container{max-width:1100px;margin:0 auto;padding:18px;}
     .card{background:var(--card);border:1px solid #1d2436;border-radius:16px;padding:18px;}
     .row{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-    .row-1{display:grid;grid-template-columns:1fr;gap:18px}
     h1{font-size:22px;margin:0 0 4px}
     h2{font-size:18px;margin:0 0 8px}
     h3{font-size:16px;margin:18px 0 8px}
-    p,li,div,code{font-size:14px;line-height:1.5;color:var(--muted)}
+    p,li,div,code,label,select,input{font-size:14px;line-height:1.5;color:var(--muted)}
     .pill{display:inline-block;background:#0f1a2a;border:1px solid #1d2436;padding:6px 10px;border-radius:999px}
     .uploader{border:1px dashed #2a3753;border-radius:12px;padding:18px;text-align:center}
     input[type=file]{display:block;margin:8px auto;color:var(--muted)}
@@ -34,18 +32,18 @@
     .muted{opacity:.8}
     .kbd{border:1px solid #2a3753;border-bottom-width:2px;border-radius:6px;padding:2px 6px;font-family:ui-monospace,monospace;font-size:12px;color:#cfe6ff}
     a{color:#8dd7ff;text-decoration:none}
+    .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
+    .select{background:#0b1222;border:1px solid #26304a;border-radius:8px;padding:8px;color:var(--text);width:100%}
   </style>
 
-  <!-- pdf.js (read PDFs in browser) -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.6.82/pdf.min.js" integrity="sha512-Nb3szZP3bX0aGQm9mLr0Xk1U0dR8VXwk8t3r8B6pI3cI3Ttq6tV3l6j2zB9Q80rQ4m6k2wqUqXv3h7M2y8bF2A==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-  <!-- marked.js (render Markdown nicely) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.6.82/pdf.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
   <header>
     <div class="container">
       <h1>🎤 Voice Coach</h1>
-      <p class="muted">Upload your <strong>voice report PDF</strong>; get a tailored, non-medical plan (breathing, stability, clarity). Runs entirely in your browser.</p>
+      <p class="muted">Upload your <strong>voice report PDF</strong> (Public Speaking / Karaoke / Podcast). Get tailored, non-medical tips. Runs entirely in your browser.</p>
     </div>
   </header>
 
@@ -56,11 +54,25 @@
         <div class="uploader">
           <input id="pdfInput" type="file" accept="application/pdf" />
           <button class="ghost" id="demoBtn">Try Demo (no PDF)</button>
-          <p class="muted" style="margin-top:8px">We only read text. Scanned images may not parse well.</p>
-        </div>
-        <div style="margin-top:14px">
-          <span class="pill">Tip</span>
-          <span class="muted">Press <span class="kbd">P</span> to re-run analysis after edits.</span>
+          <div class="row2">
+            <label>
+              Mode (auto from PDF or override)
+              <select id="modeSelect" class="select">
+                <option value="auto">Auto (from PDF)</option>
+                <option value="public_speaking">Public Speaking</option>
+                <option value="karaoke">Karaoke</option>
+                <option value="podcast">Podcast</option>
+              </select>
+            </label>
+            <label>
+              Web help (optional)
+              <select id="webToggle" class="select">
+                <option value="off">Off (local tips only)</option>
+                <option value="on">On (use /api/search if available)</option>
+              </select>
+            </label>
+          </div>
+          <p class="muted" style="margin-top:8px">Scanned image PDFs may not parse well. For web help you need a Netlify Function at <code>/api/search</code>.</p>
         </div>
 
         <h2 style="margin-top:16px">2) Findings</h2>
@@ -80,13 +92,12 @@
         <div class="chat">
           <div id="chatLog" class="chat-log"></div>
           <div class="chat-input">
-            <input id="chatText" type="text" placeholder="Ask for breathing drills, warm-up, clarity tips…" style="flex:1;background:#0b1222;border:1px solid #26304a;border-radius:8px;padding:10px;color:var(--text)"/>
+            <input id="chatText" type="text" placeholder="Ask breathing, clarity, projection… (off-topic gets a polite no)" style="flex:1;background:#0b1222;border:1px solid #26304a;border-radius:8px;padding:10px;color:var(--text)"/>
             <button id="sendBtn">Send</button>
           </div>
         </div>
-
         <div style="margin-top:12px">
-          <p class="muted"><strong>Note:</strong> Educational guidance only; not medical advice. For any clinical issues, consult a licensed SLP/ENT.</p>
+          <p class="muted"><strong>Note:</strong> Educational guidance only; not medical advice. For clinical issues, consult a licensed SLP/ENT.</p>
         </div>
       </section>
     </div>
@@ -98,16 +109,20 @@
   </main>
 
 <script>
-/* ---------------- Utilities ---------------- */
+/* ---------------- State/refs ---------------- */
 const $ = sel => document.querySelector(sel);
 const metricsBox = $("#metrics");
 const findingsBox = $("#findings");
 const planBox = $("#plan");
 const rawBox = $("#raw");
+const modeSelect = $("#modeSelect");
+const webToggle = $("#webToggle");
+
 let lastPlanMD = "";
 let reportText = "";
+let detectedMode = "public_speaking"; // default
 
-/* PDF extraction using pdf.js */
+/* ---------------- PDF extraction ---------------- */
 async function readPdf(file) {
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
@@ -115,125 +130,125 @@ async function readPdf(file) {
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
     const text = await page.getTextContent();
-    const strings = text.items.map(item => item.str);
-    fullText += strings.join(" ") + "\n";
+    fullText += text.items.map(it => it.str).join(" ") + "\n";
   }
   return fullText;
 }
 
-/* Helpers */
-const toFloat = v => {
-  if (v == null) return null;
-  const s = String(v).replace(/[^0-9.\-]/g,"");
-  const n = parseFloat(s);
-  return Number.isFinite(n) ? n : null;
-};
-const findMetric = (pattern, text) => {
-  const m = text.match(pattern);
-  return m ? m[1] : null;
-};
+/* ---------------- Helpers ---------------- */
+const toFloat = v => v==null?null:(n=>Number.isFinite(n)?n:null)(parseFloat(String(v).replace(/[^0-9.\-]/g,"")));
+const find = (re, s) => (s.match(re)||[])[1];
+function detectModeFrom(text){
+  const t = text.toLowerCase();
+  if (t.includes("karaoke")) return "karaoke";
+  if (t.includes("public speaking")) return "public_speaking";
+  if (t.includes("podcast")) return "podcast";
+  return "public_speaking";
+}
 
-/* Core: analyze text and build plan */
+/* ---------------- Analysis & plan ---------------- */
 function analyzeReport(text) {
   const t = text || "";
   const lower = t.toLowerCase();
+
+  // metrics
   const metrics = {
-    jitter_pct: toFloat(findMetric(/jitter[^0-9%]*([0-9.]+)\s*%/i, t)),
-    shimmer_pct: toFloat(findMetric(/shimmer[^0-9%]*([0-9.]+)\s*%/i, t)),
-    mpt_sec: toFloat(findMetric(/(?:maximum\s+phonation\s+time|mpt)[^0-9]*([0-9.]+)\s*s/i, t)),
-    sz_ratio: toFloat(findMetric(/s\/z\s*ratio[^0-9]*([0-9.]+)/i, t)),
-    f0_hz: toFloat(findMetric(/(?:f0|fundamental\s+frequency)[^0-9]*([0-9.]+)\s*hz/i, t)),
-    intensity_db: toFloat(findMetric(/(?:intensity|spl)[^0-9]*([0-9.]+)\s*db/i, t))
+    jitter_pct: toFloat(find(/jitter[^0-9%]*([0-9.]+)\s*%/i, t)),
+    shimmer_pct: toFloat(find(/shimmer[^0-9%]*([0-9.]+)\s*%/i, t)),
+    mpt_sec:    toFloat(find(/(?:maximum\s+phonation\s+time|mpt)[^0-9]*([0-9.]+)\s*s/i, t)),
+    sz_ratio:   toFloat(find(/s\/z\s*ratio[^0-9]*([0-9.]+)/i, t)),
+    f0_hz:      toFloat(find(/(?:f0|fundamental\s+frequency)[^0-9]*([0-9.]+)\s*hz/i, t)),
+    intensity_db: toFloat(find(/(?:intensity|spl)[^0-9]*([0-9.]+)\s*db/i, t))
   };
 
   const findings = [];
   const blocks = [];
 
-  if (metrics.jitter_pct != null) {
-    if (metrics.jitter_pct > 1.0) {
-      findings.push(`Elevated jitter (${metrics.jitter_pct}%). Possible pitch instability/roughness.`);
+  // interpret
+  if (metrics.jitter_pct!=null) {
+    if (metrics.jitter_pct>1.0){
+      findings.push(`Elevated jitter (${metrics.jitter_pct}%).`);
       blocks.push(["Pitch Stability", [
-        "Humming glides from low → comfortable high → low (5 min).",
+        "Hum glides low→high→low (5 min).",
         "SOVT: straw phonation in water, 3 × 1 min.",
-        "Gentle sirens on 'ng' to smooth registers (3 min)."
+        "Gentle sirens on 'ng' (3 min)."
       ]]);
     } else findings.push(`Jitter in typical range (${metrics.jitter_pct}%).`);
   }
-
-  if (metrics.shimmer_pct != null) {
-    if (metrics.shimmer_pct > 3.5) {
-      findings.push(`Elevated shimmer (${metrics.shimmer_pct}%). Potential loudness/control instability.`);
+  if (metrics.shimmer_pct!=null) {
+    if (metrics.shimmer_pct>3.5){
+      findings.push(`Elevated shimmer (${metrics.shimmer_pct}%).`);
       blocks.push(["Loudness Control", [
-        "Crescendo–decrescendo on sustained 'ah' (5s up, 5s down), 5 reps.",
+        "Crescendo–decrescendo on 'ah' (5s up/5s down) × 5.",
         "Lip trills at steady volume (3 min).",
-        "Count 1–10: soft → medium → loud → soft with clarity."
+        "Count 1–10: soft→medium→loud→soft."
       ]]);
     } else findings.push(`Shimmer in typical range (${metrics.shimmer_pct}%).`);
   }
-
-  if (metrics.mpt_sec != null) {
-    if (metrics.mpt_sec < 15) {
-      findings.push(`Short Maximum Phonation Time (${metrics.mpt_sec}s). May indicate breath support limits.`);
+  if (metrics.mpt_sec!=null) {
+    if (metrics.mpt_sec<15){
+      findings.push(`Short MPT (${metrics.mpt_sec}s): breath support may be limited.`);
       blocks.push(["Breath Support", [
-        "Diaphragmatic 4–4–6: inhale 4, hold 4, exhale 6 × 10.",
-        "Sustain 'sss' and 'zzz' with even airstream (6 reps each).",
-        "Light panting → slow exhale on 'ffff' (5 min total)."
+        "Diaphragmatic 4–4–6 × 10.",
+        "Sustain 'sss' and 'zzz' (6 reps each).",
+        "Light panting → slow 'ffff' exhale (5 min total)."
       ]]);
     } else findings.push(`MPT looks adequate (${metrics.mpt_sec}s).`);
   }
-
-  if (metrics.sz_ratio != null) {
-    if (metrics.sz_ratio < 0.8 || metrics.sz_ratio > 1.2) {
-      findings.push(`S/Z ratio outside typical band (~0.8–1.2): ${metrics.sz_ratio}.`);
+  if (metrics.sz_ratio!=null) {
+    if (metrics.sz_ratio<0.8 || metrics.sz_ratio>1.2){
+      findings.push(`S/Z ratio outside ~0.8–1.2: ${metrics.sz_ratio}.`);
       blocks.push(["Glottal Efficiency", [
-        "S/Z drills: alternate sustained /s/ and /z/, match durations; 5 pairs.",
-        "Resonant hums ('mmm') with forward buzz (3 min).",
-        "Straw phonation (air only → voiced) to balance flow/closure, 3 × 1 min."
+        "Alternate /s/ and /z/, match durations (5 pairs).",
+        "Resonant hums ('mmm') forward buzz (3 min).",
+        "Straw phonation air→voice (3 × 1 min)."
       ]]);
     } else findings.push(`S/Z ratio in typical band (${metrics.sz_ratio}).`);
   }
+  if (metrics.f0_hz!=null) findings.push(`F0: ${metrics.f0_hz} Hz.`);
+  if (metrics.intensity_db!=null) findings.push(`Intensity: ${metrics.intensity_db} dB.`);
 
-  if (metrics.f0_hz != null) findings.push(`Reported F0: ${metrics.f0_hz} Hz.`);
-  if (metrics.intensity_db != null) findings.push(`Reported intensity: ${metrics.intensity_db} dB.`);
+  // keywords
+  const K = (...ws)=>ws.some(w=>lower.includes(w));
+  if (K("hoarse","hoarseness","raspy")) blocks.push(["Anti-Fatigue", [
+    "Hydrate 2–3 L/day.",
+    "SOVT (straw/lip/tongue trills) 5–8 min/day.",
+    "5-min quiet rest per heavy-use hour."
+  ]]);
+  if (K("nasal","nasality")) blocks.push(["Resonance Balance", [
+    "‘mmm’ → ‘ma’ keeping forward buzz.",
+    "mee–may–mah–moh–moo × 3.",
+    "Light Y-buzz phrases (3 min)."
+  ]]);
+  if (K("tension","pressed","strain")) blocks.push(["De-tension", [
+    "Neck/shoulder stretches (no pain).",
+    "Yawn–sigh glides × 10.",
+    "Low-effort speaking for ~2 min."
+  ]]);
 
-  const k = (...ws) => ws.some(w => lower.includes(w));
-  if (k("hoarse","hoarseness","rough","raspy")) {
-    blocks.push(["Reduce Hoarseness / Fatigue", [
-      "Hydrate 2–3 L/day; warm water before/after heavy use.",
-      "SOVT toolkit: straw/lip/tongue trills 5–8 min/day in short sets.",
-      "Micro-rests: 5 min quiet each hour of heavy voice use."
+  // mode-specific add-ons
+  const mode = (modeSelect.value==="auto" ? detectedMode : modeSelect.value);
+  if (mode==="public_speaking"){
+    blocks.push(["Public Speaking Focus", [
+      "Pace at ~140–160 wpm; breathe at punctuation.",
+      "Projection without push: ‘mmm’ → words.",
+      "Articulation ladder: tongue twisters 3 min."
     ]]);
-  }
-  if (k("nasal","nasality")) {
-    blocks.push(["Resonance Balance", [
-      "Hum 'mmm' → open to 'ma' without losing forward buzz.",
-      "Nasal–oral contrast: 'mee–may–mah–moh–moo' (3 sets).",
-      "Light 'Y-buzz' phrases to center forward resonance (3 min)."
+  } else if (mode==="karaoke"){
+    blocks.push(["Karaoke Focus", [
+      "5-step sirens before singing.",
+      "Verse-only run-through at 70% volume.",
+      "Crescendo–decrescendo on vowels (5 reps)."
     ]]);
-  }
-  if (k("articulation","clarity","slurred","diction")) {
-    blocks.push(["Articulation & Clarity", [
-      "Exaggerated tongue twisters (slow → natural), 5 min.",
-      "Consonant bursts: 'p t k' then crisp phrases.",
-      "Smile-read: 1 paragraph with light smile to brighten tone."
-    ]]);
-  }
-  if (k("strain","pressed","hyperfunction","tension")) {
-    blocks.push(["Release Excess Tension", [
-      "Neck/shoulder stretches (no pain), 3 min.",
-      "Yawn–sigh glides to reset laryngeal tension (10 reps).",
-      "Low-effort speaking: 2 semitones below habitual for ~2 min."
-    ]]);
-  }
-  if (k("breath","breathing","support","airflow")) {
-    blocks.push(["Breathing Foundation", [
-      "Box breathing 4–4–4–4 × 10 cycles.",
-      "Sustained fricatives 'sss/fff' with steady flow (6 reps).",
-      "Read aloud; breathe at punctuation marks."
+  } else if (mode==="podcast"){
+    blocks.push(["Podcast Focus", [
+      "Consistency set: read 2 paragraphs at even SPL.",
+      "Mic discipline: 6–8 cm, 20° off-axis, pop-filter.",
+      "Warm, close tone: hum-to-speech transitions."
     ]]);
   }
 
-  // Always include warm-up & cool-down
+  // always include warm up/cool down
   blocks.push(["Daily Warm-up (5–7 min)", [
     "Neck/shoulder roll + jaw massage (1 min).",
     "Lip trills or straw phonation (2 min).",
@@ -241,108 +256,161 @@ function analyzeReport(text) {
   ]]);
   blocks.push(["Cool-down (2–3 min)", [
     "Gentle hums, descending slides.",
-    "SOVT (straw/lip trill) 60–90s.",
-    "2 minutes quiet voice or rest."
+    "SOVT 60–90 s.",
+    "2 min quiet voice or rest."
   ]]);
 
-  // De-duplicate by title
+  // dedup
   const dedup = {};
-  for (const [title, items] of blocks) {
-    dedup[title] = dedup[title] || [];
+  for (const [title, items] of blocks){
+    dedup[title] = dedup[title]||[];
     for (const it of items) if (!dedup[title].includes(it)) dedup[title].push(it);
   }
-
-  const plan = [];
-  for (const title of Object.keys(dedup)) plan.push({ title, items: dedup[title] });
-
-  return { metrics, findings, plan };
+  const plan = Object.keys(dedup).map(t=>({title:t, items:dedup[t]}));
+  return {metrics, findings, plan, mode};
 }
 
-/* Render functions */
+/* ---------------- Rendering ---------------- */
 function renderAnalysis(res) {
   metricsBox.innerHTML = "";
   const m = res.metrics;
-  const entries = [
-    ["Jitter %", m.jitter_pct],
-    ["Shimmer %", m.shimmer_pct],
-    ["MPT (s)", m.mpt_sec],
-    ["S/Z ratio", m.sz_ratio],
-    ["F0 (Hz)", m.f0_hz],
-    ["Intensity (dB)", m.intensity_db],
-  ];
-  for (const [k,v] of entries) {
-    const div = document.createElement("div");
-    div.className = "metric";
-    div.innerHTML = `<div class="muted">${k}</div><div style="font-weight:700;color:#cfe6ff">${v ?? "—"}</div>`;
-    metricsBox.appendChild(div);
-  }
+  [["Jitter %",m.jitter_pct],["Shimmer %",m.shimmer_pct],["MPT (s)",m.mpt_sec],["S/Z ratio",m.sz_ratio],["F0 (Hz)",m.f0_hz],["Intensity (dB)",m.intensity_db]]
+    .forEach(([k,v])=>{
+      const div=document.createElement("div");
+      div.className="metric";
+      div.innerHTML=`<div class="muted">${k}</div><div style="font-weight:700;color:#cfe6ff">${v ?? "—"}</div>`;
+      metricsBox.appendChild(div);
+    });
 
   findingsBox.innerHTML = "";
-  if (res.findings?.length) {
-    const ul = document.createElement("ul");
-    res.findings.forEach(f => {
-      const li = document.createElement("li"); li.textContent = f; ul.appendChild(li);
-    });
+  const modeLine = document.createElement("p");
+  modeLine.innerHTML = `<strong>Detected/Selected Mode:</strong> ${res.mode.replace("_"," ")}`;
+  findingsBox.appendChild(modeLine);
+
+  if (res.findings?.length){
+    const ul=document.createElement("ul");
+    res.findings.forEach(f=>{const li=document.createElement("li"); li.textContent=f; ul.appendChild(li);});
     findingsBox.appendChild(ul);
   } else {
-    findingsBox.innerHTML = `<p class="muted">No specific metrics found—plan still generated from general cues.</p>`;
+    findingsBox.innerHTML += `<p class="muted">No specific metrics found—plan still generated from general cues.</p>`;
   }
 
   let md = `# Personalized Voice Plan\n**Note:** Educational guidance only; not medical advice.\n\n`;
-  if (res.findings?.length) {
-    md += `## Findings\n` + res.findings.map(f=>`- ${f}`).join("\n") + "\n\n";
-  }
+  if (res.findings?.length) md += `## Findings\n`+res.findings.map(f=>`- ${f}`).join("\n")+"\n\n";
   md += `## Practice Plan\n`;
-  res.plan.forEach(block => {
-    md += `### ${block.title}\n` + block.items.map(i=>`- ${i}`).join("\n") + "\n\n";
+  res.plan.forEach(b=>{
+    md += `### ${b.title}\n` + b.items.map(i=>`- ${i}`).join("\n") + "\n\n";
   });
   lastPlanMD = md;
   planBox.innerHTML = marked.parse(md);
 }
 
-/* Chat */
-function botReplyFor(text) {
+/* ---------------- Chat logic ---------------- */
+const chatLog = $("#chatLog");
+function addBubble(role, text){
+  const div=document.createElement("div");
+  div.className=`bubble ${role==="user"?"user":"bot"}`;
+  div.innerHTML = role==="bot" ? marked.parse(text) : text;
+  chatLog.appendChild(div);
+  chatLog.scrollTop = chatLog.scrollHeight;
+}
+
+// simple off-topic filter
+function isVoiceRelated(q){
+  const p=q.toLowerCase();
+  return /(voice|breath|breathing|sing|speak|speech|pitch|tone|resonance|articulation|karaoke|podcast|public|mpt|jitter|shimmer|s\/z|clarity|projection|fatigue|tension)/.test(p);
+}
+
+// variant bank per intent + mode
+const bank = {
+  breath: {
+    base: [
+      `**Breathing Mini-Block (6–8 min)**\n- Diaphragmatic 4–4–6 × 10\n- Sustained /sss/ steady airstream × 6\n- Straw phonation (air→voice) 3 × 60s\n- Read aloud; breathe at punctuation`,
+      `**Airflow Builder**\n- Box breathing 4–4–4–4 for 2 min\n- Hiss "sss" then voiced "zzz" (5 reps each)\n- Long gentle 'ffff' exhale while counting`
+    ],
+    karaoke: [
+      `**Singing Breath Set**\n- 5 step sirens on 'oo'\n- Phrase-by-phrase breaths at commas\n- 3× 45s lip trills before chorus`
+    ],
+    public_speaking: [
+      `**Speaking Breath Set**\n- Nose inhale, mouth exhale on punctuation\n- Read 2 paragraphs at even pace\n- 90s straw phonation to center airflow`
+    ],
+    podcast: [
+      `**Podcast Breath Set**\n- 8 slow diaphragmatic breaths\n- Even SPL reading (2 min)\n- Soft hum→speech entries`
+    ]
+  },
+  clarity: [
+    `**Clarity & Diction**\n- Exaggerated tongue-twisters (3 min)\n- Consonant bursts: "p t k" → phrases\n- Smile-read one paragraph`,
+    `**Crisp Speech**\n- Count 1–20 over-articulated\n- Headline reading: emphasize consonants\n- 'mmm'→'ma' keeping forward buzz`
+  ],
+  projection: [
+    `**Projection Without Push**\n- 'mmm' → words (forward resonance)\n- Count 1–10 medium volume, throat relaxed\n- 3× 45s lip trills`,
+    `**Resonant Projection**\n- Y-buzz phrases (You, Young…)\n- Vowel cresc/decresc 5s up/5s down × 5\n- Jaw loose, chest quiet`
+  ],
+  fatigue: [
+    `**Anti-Fatigue**\n- Hydrate; warm water\n- SOVT 5–8 min/day in short sets\n- 5-min quiet each heavy-use hour\n- Replace throat clearing with silent cough`,
+    `**Recovery**\n- 2 min quiet hums\n- 60–90s straw phonation\n- Gentle descending slides`
+  ],
+  pitch: [
+    `**Pitch Stability**\n- Hum glides low→high→low (3 min)\n- 'ng' sirens\n- Straw phonation 3×60s`,
+    `**Smooth Registers**\n- 5-step sirens on "oo"\n- Glide into speech without breaks\n- Track comfort, not range`
+  ]
+};
+
+async function maybeSearchWeb(q){
+  if (webToggle.value !== "on") return null;
+  try {
+    const r = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+    if (!r.ok) throw new Error("search off");
+    const data = await r.json();
+    if (!Array.isArray(data?.items) || !data.items.length) return null;
+    const top = data.items.slice(0,3).map(x=>`- [${x.title}](${x.link})`).join("\n");
+    return `Here are helpful resources I found:\n${top}\n\n(Use with discretion; practice tips below are general.)`;
+  } catch { return null; }
+}
+
+function modeAwareBreath(mode){
+  const base = bank.breath.base[Math.floor(Math.random()*bank.breath.base.length)];
+  const extraList = bank.breath[mode] || [];
+  const extra = extraList.length ? "\n\n"+extraList[Math.floor(Math.random()*extraList.length)] : "";
+  return base + extra;
+}
+
+async function replyFor(text){
   const p = text.toLowerCase();
-  if (/\b(breath|breath|diaphragm|support)\b/.test(p)) {
-    return `### Breathing Mini-Block (6–8 min)
-- Diaphragmatic 4–4–6 × 10
-- Sustained /sss/ steady airstream × 6
-- Straw phonation (air → voice) 3 × 60s
-- Read aloud; breathe at punctuation`;
+
+  // off-topic polite refusal
+  if (!isVoiceRelated(p)) {
+    return "I’m focused on **voice improvement** (breathing, clarity, pitch, projection, resonance). I can’t help with that request — try asking a voice-related question 🙂";
   }
-  if (/\b(hoarse|raspy|fatigue|tired)\b/.test(p)) {
-    return `### Anti-Fatigue Toolkit
-- Hydrate; warm/room-temp water
-- SOVT (straw/lip) 5–8 min/day in short sets
-- Micro-rests: 5 min quiet each hour
-- Avoid throat clearing; use a silent cough`;
-  }
-  if (/\b(plan|routine|program|summary)\b/.test(p)) {
-    return lastPlanMD || "Upload your PDF to generate a personalized plan first.";
-  }
-  return `Try this versatile set:
-- Warm-up: lip/tongue trills (2 min) → hum slides (2 min)
-- Articulation: exaggerated tongue twisters (3 min)
-- Resonance: 'mmm' → 'ma' keeping forward buzz (2 min)
-Ask about breathing, hoarseness, clarity, or say “plan”.`;
+
+  // optional web snippet (best-effort)
+  const web = await maybeSearchWeb(text);
+  const mode = (modeSelect.value==="auto" ? detectedMode : modeSelect.value);
+
+  // intent routing
+  if (/(breath|breathing|diaphragm|airflow|support)/.test(p)) return (web? web+"\n\n": "") + modeAwareBreath(mode);
+  if (/(clarity|articulation|diction|pronunciation)/.test(p)) return (web? web+"\n\n": "") + bank.clarity[Math.floor(Math.random()*bank.clarity.length)];
+  if (/(project|loud|volume)/.test(p))   return (web? web+"\n\n": "") + bank.projection[Math.floor(Math.random()*bank.projection.length)];
+  if (/(hoarse|raspy|fatigue|tired)/.test(p)) return (web? web+"\n\n": "") + bank.fatigue[Math.floor(Math.random()*bank.fatigue.length)];
+  if (/(pitch|jitter)/.test(p))          return (web? web+"\n\n": "") + bank.pitch[Math.floor(Math.random()*bank.pitch.length)];
+  if (/(plan|routine|program|summary)/.test(p)) return (web? web+"\n\n": "") + (lastPlanMD || "Upload your PDF first and I’ll craft a plan.");
+  // default
+  return (web? web+"\n\n": "") + `**Quick Warm-up (5–6 min)**\n- Lip/tongue trills 2 min\n- Hum slides 2 min\n- Read a paragraph, breathe at punctuation`;
 }
 
-function addBubble(role, text) {
-  const log = $("#chatLog");
-  const div = document.createElement("div");
-  div.className = `bubble ${role === "user" ? "user" : "bot"}`;
-  div.innerHTML = role === "bot" ? marked.parse(text) : text;
-  log.appendChild(div);
-  log.scrollTop = log.scrollHeight;
-}
-
-/* Event wiring */
+/* ---------------- Events ---------------- */
 $("#pdfInput").addEventListener("change", async (e) => {
   const file = e.target.files?.[0];
   if (!file) return;
   rawBox.textContent = "Reading PDF…";
   try {
     reportText = await readPdf(file);
+    detectedMode = detectModeFrom(reportText);
+    if (modeSelect.value==="auto") {
+      // just visual hint for the user
+      const opt = Array.from(modeSelect.options).find(o=>o.value===detectedMode);
+      if (opt) modeSelect.title = `Detected: ${opt.text}`;
+    }
     rawBox.textContent = reportText;
     const res = analyzeReport(reportText);
     renderAnalysis(res);
@@ -352,12 +420,20 @@ $("#pdfInput").addEventListener("change", async (e) => {
 });
 
 $("#demoBtn").addEventListener("click", () => {
-  reportText = `Voice Report
-  Jitter 1.6 %
-  Shimmer 4.2 %
-  Maximum Phonation Time 12 s
-  S/Z ratio 1.5
+  reportText = `Session Information
+  Processing Mode: Karaoke
+  Duration: 103.8 seconds
+  AI Enhancement: Enabled
+  Performance Metrics
+  Average Latency 48.07 ms
+  Minimum Latency 15.41 ms
+  Maximum Latency 100.99 ms
+  Total Samples 4042752
+  Processing Settings
+  Pitch Correction 0.3
+  Reverb Amount 0.4
   Notes: hoarseness after speaking, mild nasality.`;
+  detectedMode = "karaoke";
   rawBox.textContent = reportText;
   const res = analyzeReport(reportText);
   renderAnalysis(res);
@@ -378,21 +454,14 @@ $("#copyBtn").addEventListener("click", async () => {
   alert("Plan copied to clipboard!");
 });
 
-$("#sendBtn").addEventListener("click", () => {
+$("#sendBtn").addEventListener("click", async () => {
   const input = $("#chatText");
   const msg = input.value.trim();
   if (!msg) return;
   addBubble("user", msg);
   input.value = "";
-  const reply = botReplyFor(msg);
+  const reply = await replyFor(msg);
   addBubble("bot", reply);
-});
-
-document.addEventListener("keydown", (e) => {
-  if (e.key.toLowerCase() === "p") {
-    const res = analyzeReport(reportText || "");
-    renderAnalysis(res);
-  }
 });
 </script>
 </body>
